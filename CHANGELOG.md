@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `localStorage` 开关
 - 暴露覆盖层颜色 / 透明度配置项
 
+## [1.0.2] - 2026-08-22
+
+### Added
+- 真实图标：黑色圆角方块 + 弯月 + 四角星，源文件 `icon.svg`（64×64 viewBox，免版税 SVG）
+- `@icon` 字段从 1×1 透明 GIF 占位符更新为 SVG data URI base64
+- 脚本内注释说明 `@icon` 跟 `icon.svg` 的关联及重新生成 base64 的方法
+
+### Note
+本次更新**无任何代码行为变化**，纯图标 + 元数据。代码逻辑与 1.0.1 完全一致。
+
 ## [1.0.1] - 2026-08-22
 
 ### Changed

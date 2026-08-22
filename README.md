@@ -13,6 +13,10 @@ darkComplete 用 JavaScript 接管这些"CSS 力所不能及"的 DOM 状态，�
 
 > ⚠️ **如果你的浏览器还没装 Dark Reader 或同类暗色模式扩展，请先装那个。** darkComplete 不做颜色反演 —— 它只在你已经"全黑"的底色上做最后的抛光。
 
+## 🖼️ 图标
+
+![darkComplete icon](./icon.svg) &nbsp; **`[icon.svg](./icon.svg)`** — 64×64 viewBox 免版税 SVG：黑色圆角底 + 弯月 + 四角星。所有元素在 16×16 也能识别，Tampermonkey 列表里看着也清晰。
+
 ## 🧩 与其他暗色模式扩展的关系
 
 ```

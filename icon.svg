@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+    <!-- 暗色圆角方块底 (暗色模式) -->
+    <rect width="64" height="64" rx="14" fill="#0a0a0a"/>
+
+    <!-- 月牙: 通过 mask 把白色月面挖成弯月 -->
+    <defs>
+        <mask id="moon-mask">
+            <rect width="64" height="64" fill="white"/>
+            <circle cx="42" cy="26" r="15" fill="black"/>
+        </mask>
+    </defs>
+
+    <!-- 月面主体 (mask 之后呈现弯月) -->
+    <circle cx="34" cy="32" r="17" fill="#ededed" mask="url(#moon-mask)"/>
+
+    <!-- 右下角小星星: 暗示"完成/抛光" -->
+    <path d="M 50 42 L 51.5 45.5 L 55 47 L 51.5 48.5 L 50 52 L 48.5 48.5 L 45 47 L 48.5 45.5 Z" fill="#ededed"/>
+</svg>
