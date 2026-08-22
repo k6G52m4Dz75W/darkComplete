@@ -3,7 +3,7 @@
 > **给暗色模式扩展的锦上添花 —— 补完纯 CSS 力所不能及的最后几毫秒**
 > **The Icing on the Dark Mode Cake — finish what pure CSS can't see**
 
-你的 [Dark Reader](https://darkreader.org/) / Stylus / Stylus / 浏览器原生暗色模式已经处理了 **99%** 的工作：文字反色、图片滤镜、变量替换、CSS 注入。但有**一类瞬间**是纯 CSS 看不见的 —— 图片还在加载中、懒加载刚触发、视频 poster 还没就绪、占位图还是 data URI ……
+你的 [Dark Reader](https://darkreader.org/) / [Stylus](https://github.com/openstyles/stylus) / 浏览器原生暗色模式已经处理了 **99%** 的工作：文字反色、图片滤镜、变量替换、CSS 注入。但有**一类瞬间**是纯 CSS 看不见的 —— 图片还在加载中、懒加载刚触发、视频 poster 还没就绪、占位图还是 data URI ……
 
 darkComplete 用 JavaScript 接管这些"CSS 力所不能及"的 DOM 状态，在图片真正渲染之前先把那束光按下去。**不是替代品，是增强增益脚本**。
 
