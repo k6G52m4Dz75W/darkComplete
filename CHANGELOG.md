@@ -14,6 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `localStorage` 开关
 - 暴露覆盖层颜色 / 透明度配置项
 
+## [1.0.1] - 2026-08-22
+
+### Changed
+- **项目定位正式确立**：darkComplete 不是 Dark Reader / 暗色模式扩展的**替代品**，而是**叠加在它们之上的增强层**。Layer 1（CSS 颜色反演、变量替换、图片滤镜）由现有暗色模式扩展负责；darkComplete 接管 Layer 1 看不见的瞬间（图片未加载、懒加载、占位图、加载失败）。
+- **重写 README**：去掉"补完最后一公里"的竞争性表达，改为"锦上添花 / The icing on the dark mode cake"的协作性表达。新增"与暗色模式扩展协作图"、"互补对比表"、"适用人群 / 不适用人群"明确边界。
+- **重写 `@description`**：强调"专为暗色模式扩展锦上添花"，并在 description 里点明 Layer 2 的职责。
+- **新增贡献原则**：明确"永远不要做成颜色反演功能，那是 Layer 1 的事"。
+
+### Note
+本次更新**无任何代码行为变化**，纯定位校正 + 文档同步。代码逻辑与 1.0.0 完全一致。
+
 ## [1.0.0] - 2026-08-22
 
 ### Added

@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         darkComplete
 // @namespace    https://github.com/k6G52m4Dz75W/darkComplete
-// @version      1.0.0
-// @description  暗色模式下用 CSS 覆盖层按掉未加载图片的刺眼亮色，补完深色模式的最后一公里。Mask the bright flash of loading images in dark mode.
+// @version      1.0.1
+// @description  专为暗色模式扩展 (如 Dark Reader) 锦上添花。JS 接管 CSS 看不见的瞬间——未加载图片、懒加载、占位图——把暗色模式体验从 99% 推到 100%。The icing on the dark mode cake for existing extensions.
 // @author       darkComplete Contributors
 // @match        *://*/*
 // @icon         data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==
