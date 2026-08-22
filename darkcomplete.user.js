@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         darkComplete
 // @namespace    https://github.com/k6G52m4Dz75W/darkComplete
-// @version      1.1.2
+// @version      1.1.3
 // @description  专为暗色模式扩展 (如 Dark Reader) 锦上添花。JS 接管 CSS 看不见的瞬间——未加载图片、懒加载、占位图——把暗色模式体验从 99% 推到 100%。The icing on the dark mode cake for existing extensions.
 // @author       darkComplete Contributors
 // @match        *://*/*
@@ -48,41 +48,29 @@
         /* === Fast path: 常见占位图 src 模式 ===
            这几条规则在 stylesheet 注入即生效, 不需要 JS 运行, 大幅压缩"闪白→覆盖"窗口.
            若想添加新模式, 同步在 JS 的 PLACEHOLDER_PATTERNS 里加正则即可.
-           visibility: hidden 隐藏原图 (因为原图是不透明的, 会遮挡我们的 background-image)
-           filter: none 防止 Dark Reader 等扩展反转我们的深色占位. */
+           visibility: hidden 隐藏原图 (因为原图是不透明的, 会遮挡我们的占位)
+           filter: none 防止 Dark Reader 等扩展反转. */
         img[src*="loading"],
         img[src*="blank"],
         img[src*="placeholder"],
         img[src*="transparent"],
         img[src*="spacer"] {
             visibility: hidden !important;
-            background-color: #1a1a1a !important;
-            background-image: url("${PLACEHOLDER_DATA_URI}") !important;
-            background-repeat: no-repeat !important;
-            background-position: center center !important;
-            background-size: contain !important;
             filter: none !important;
         }
 
         /* === Class-based: JS 检测到占位图时加到 <img> 上 ===
            覆盖 fast path 漏掉的 (例如 data:image/* URI)
-           visibility: hidden 同样隐藏原图
-           filter: none 防止 Dark Reader 等扩展反转我们的深色占位 (但仅限 loading 期间) */
+           visibility: hidden 同样隐藏原图. */
         img.${LOADING_CLASS} {
             visibility: hidden !important;
-            background-color: #1a1a1a !important;
-            background-image: url("${PLACEHOLDER_DATA_URI}") !important;
-            background-repeat: no-repeat !important;
-            background-position: center center !important;
-            background-size: contain !important;
             filter: none !important;
             transition: background-color 0.15s ease;
         }
 
-        /* === 父元素 ::after 实际显示占位图 ===
-           关键: <img> 用 visibility: hidden 隐藏原图 (顺便隐藏了 img 自己的 background),
-           真正的占位由 ::after 在父元素层面渲染 (不受 <img> visibility 影响, z-index 999999 永远在最上层)
-           这里同时挂 background-color 和 background-image, 任何时候都至少有一层深色 + 文字占位 */
+        /* === 父元素 ::after 兜底: 任何机制失效时仍有深色覆盖 ===
+           所有 handled 图片 (含普通慢加载) 都加, 仅深色, 不显示文字 (避免误伤普通图)
+           z-index 999999 永远在最上层, 防止白闪 */
         .${STYLE_CLASS}-container:not([data-dark-parent-rel]) {
             position: relative !important;
         }
@@ -95,15 +83,23 @@
             width: 100% !important;
             height: 100% !important;
             background-color: #000000 !important;
-            background-image: url("${PLACEHOLDER_DATA_URI}") !important;
-            background-repeat: no-repeat !important;
-            background-position: center center !important;
-            background-size: contain !important;
             z-index: 999999 !important;
             pointer-events: none !important;
             display: block !important;
             filter: none !important;
             transition: opacity 0.15s ease !important;
+        }
+
+        /* === 真正是占位图 (而非普通慢加载图) 时, ::after 才显示文字 ===
+           clamp(24px, 50%, 64px) 让文字自适应:
+             - 24px (最小, 16-48px 范围内的图都不溢出)
+             - 50% (中等, 48-128px 按容器一半)
+             - 64px (封顶, 大图也不会让文字铺满整个图) */
+        .${STYLE_CLASS}-container.${STYLE_CLASS}-show-text::after {
+            background-image: url("${PLACEHOLDER_DATA_URI}") !important;
+            background-repeat: no-repeat !important;
+            background-position: center center !important;
+            background-size: clamp(24px, 50%, 64px) !important;
         }
 
         .${STYLE_CLASS}-container.${STYLE_CLASS}-done::after {
@@ -135,7 +131,7 @@
 
         img.setAttribute(PROCESS_ATTR, 'processing');
 
-        // 如果是占位图, 给 <img> 加 loading class (CSS 提供 background-image 占位图)
+        // 如果是占位图, 给 <img> 加 loading class (隐藏原图)
         if (placeholder) {
             img.classList.add(LOADING_CLASS);
         }
@@ -149,6 +145,10 @@
             container.setAttribute('data-dark-parent-rel', '');
         }
         container.classList.add(`${STYLE_CLASS}-container`);
+        // 仅真占位图才显示文字 (避免切下一张等普通慢加载场景被"晃瞎")
+        if (placeholder) {
+            container.classList.add(`${STYLE_CLASS}-show-text`);
+        }
 
         const tryRemoveOverlay = () => {
             const nowSrc = img.currentSrc || img.src;
@@ -159,7 +159,7 @@
                 img.setAttribute(PROCESS_ATTR, 'done');
 
                 setTimeout(() => {
-                    container.classList.remove(`${STYLE_CLASS}-container`, `${STYLE_CLASS}-done`);
+                    container.classList.remove(`${STYLE_CLASS}-container`, `${STYLE_CLASS}-done`, `${STYLE_CLASS}-show-text`);
                     container.removeAttribute('data-dark-parent-rel');
                 }, 150);
                 return true;
@@ -177,7 +177,7 @@
             img.setAttribute(PROCESS_ATTR, 'done');
             attrObserver.disconnect();
             setTimeout(() => {
-                container.classList.remove(`${STYLE_CLASS}-container`, `${STYLE_CLASS}-done`);
+                container.classList.remove(`${STYLE_CLASS}-container`, `${STYLE_CLASS}-done`, `${STYLE_CLASS}-show-text`);
                 container.removeAttribute('data-dark-parent-rel');
             }, 150);
         }, { once: true });

@@ -13,7 +13,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `prefers-color-scheme` 联动（仅 dark 模式注入）
 - `localStorage` 开关
 - 暴露覆盖层颜色 / 透明度配置项
-- 占位图大小上限（避免大图下文字过大）— `background-size: clamp(32px, 50%, 96px)` 候选
+
+## [1.1.3] - 2026-08-22
+
+### Fixed
+- **占位文本滥用**：v1.1.2 对所有 handled 图片（含普通慢加载）都显示 "正在载入……/Loading..." 文字，对图库"切下一张"等场景造成"晃瞎眼"反复闪烁
+- **修法**：用新 class `tm-image-dark-placeholder-show-text` 区分两种情况
+  - JS 仅在 `isPlaceholder()` 命中时给父元素加 `show-text` class
+  - CSS `::after` 拆成两层：
+    - **所有** handled 图片 → 仅深色遮罩（防白闪，无文字）
+    - **真占位图** (有 `show-text` class) → 深色 + 文字 badge
+
+- **占位文本过大**：v1.1.2 用 `background-size: contain` 让文字撑满整个 `::after` (大图下文字也很大, 整个框被放大)
+- **修法**：`background-size: clamp(24px, 50%, 64px)` —— 文字自适应
+  - 24px (最小, 小图也不溢出)
+  - 50% (中等, 中等图按容器一半)
+  - 64px (封顶, 大图不会让文字铺满)
+- 结果：400x300 大图上的文字是 64px badge 居中，不是 400x300 撑满
+
+### Architecture change
+- **img 自身 CSS 简化**：去掉了 `background-image` 和 `background-color` (因为 visibility: hidden 隐藏了 img 整体, 这些都是死代码)
+- 占位文字现在**只在父元素 `::after` 上**, 通过 `show-text` class 条件启用
+- img 的 `visibility: hidden` 仍然保留, 作为"::after 完全失效时的最后防线"
+
+### Note
+bump 1.1.2 → 1.1.3。**真占位图** 仍显示 "正在载入……/Loading..." badge, **普通慢加载图** 只显示深色遮罩。
 
 ## [1.1.2] - 2026-08-22
 
