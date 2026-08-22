@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         darkComplete
 // @namespace    https://github.com/k6G52m4Dz75W/darkComplete
-// @version      1.1.9
-// @description  专为暗色模式扩展 (如 Dark Reader) 锦上添花。JS 接管 CSS 看不见的瞬间——未加载图片、懒加载、占位图——把暗色模式体验从 99% 推到 100%。The icing on the dark mode cake for existing extensions.
+// @version      1.1.10
+// @description  专为暗色模式扩展 (如 Dark Reader) 锦上添花。JS 接管图片未加载的白闪瞬间, 暗色模式下不再"白闪→图片"。占位图颜色反转交给 Dark Reader / Stylus 负责。The icing on the dark mode cake for existing extensions.
 // @author       darkComplete Contributors
 // @match        *://*/*
 // @run-at       document-start
@@ -13,76 +13,38 @@
 (function () {
     'use strict';
 
-    // ============ 配置常量 ============
-
-    // 占位符 src 识别模式 (顺序敏感, 先匹配先赢; 可按需扩展)
-    const PLACEHOLDER_PATTERNS = [
-        /^data:image\//i,                                       // data URI 一律视为占位
-        /imgloading|loading\.(gif|png|jpg|webp)|blank|placeholder|transparent|spacer|spinner/i
-    ];
-
-    // ============ 工具函数 ============
-
-    function isPlaceholder(src) {
-        if (!src) return true;
-        return PLACEHOLDER_PATTERNS.some(pattern => pattern.test(src));
-    }
-
-    // ============ CSS Fast Path ============
-    // 在 JS 跑起来前先给常见占位 src 加 visibility: hidden, 压缩"白闪→黑底"窗口
-    // inline style 后续会再加强, 这里只是 fast path
-
-    const styleNode = document.createElement('style');
-    styleNode.textContent = `
-        /* Fast path: 常见占位 src 模式 → 立即隐藏 (在 JS 跑前) */
-        img[src*="loading"],
-        img[src*="blank"],
-        img[src*="placeholder"],
-        img[src*="transparent"],
-        img[src*="spacer"] {
-            visibility: hidden !important;
-            filter: none !important;
-        }
-    `;
-    (document.head || document.documentElement).appendChild(styleNode);
-
-    // ============ 核心: 真 DOM 覆盖层 (v1.1.8 重写) ============
+    // ============ v1.1.10 简化设计 ============
     //
-    // v1.1.7 的 "改 src 为 1×1 transparent data URL" 思路在 **永久占位图场景**下翻车:
-    //   很多网站 img src 直接设为占位图 (如 imgloading.gif), 没有 data-src 之类的
-    //   lazy-load 触发机制, 占位图就是永久的. v1.1.7 改 src 之后, 真实图永远不来,
-    //   cover 永远在, **图片永远不显示**.
+    // 历史 trade-off (v1.1.5 ~ v1.1.9):
+    //   - 占位图不显示 vs 真实图显示 vs 不漆黑 vs 永远生效 → **4 选 2, 无法 4 全**
+    //   - v1.1.7 改 src 翻车在永久占位图, v1.1.8 永远漆黑, v1.1.9 5s 后跟没装一样
+    //   - 根因: darkComplete 抢占了本该是 Dark Reader 的职责 (占位图颜色反转)
     //
-    // v1.1.8 退回去: 完全不碰 src, 只用三重保险隐藏 img:
-    //   1. inline visibility: hidden (page JS 抢回 visible 也 OK)
-    //   2. inline opacity: 0 (双保险, 即使 visibility 被抢回仍隐藏)
-    //   3. 真 <div> 覆盖层 (z-index 2147483647, 物理上覆盖 img, 任何 stacking context 下都最上层)
-    //
-    // 真实图加载完成时 cleanup 移除全部 inline style + 移除 cover, img 正常显示.
+    // v1.1.10 退回正确定位:
+    //   - darkComplete 只做 "白闪保护": 图片未加载时盖住, 加载完移除
+    //   - 不再判定 src 是不是占位图 (之前的 PLACEHOLDER_PATTERNS / isPlaceholder 删除)
+    //   - 不再 inline 隐藏 img (让 Dark Reader / Stylus 接管占位图颜色反转)
+    //   - cover div z-index 2147483647 抗 stacking context (v1.1.7 的经验保留)
+    //   - 5s 兜底 (v1.1.9 的经验保留)
+    //   - broken 图 (404) 不立即清理, 5s 兜底后让用户看到 broken icon
 
-    function applyDarkCover(img) {
+    // ============ 核心: 加载期白闪保护 ============
+
+    function applyLoadingCover(img) {
         if (!img || img.tagName !== 'IMG') return;
         if (img.dataset.dcHandled) return;
-
-        const currentSrc = img.currentSrc || img.src;
-        if (!isPlaceholder(currentSrc)) return;     // 不是占位图, 不处理
-        if (img.complete && !isPlaceholder(img.currentSrc || img.src)) return;  // 已加载真实图
+        // 已加载且有内容 → 跳过 (不盖住)
+        if (img.complete && img.naturalHeight > 0) return;
 
         img.dataset.dcHandled = '1';
 
         const container = img.parentElement;
         if (!container) return;
 
-        // 1. 隐藏 img (三保险: visibility + opacity + pointer-events)
-        //    关键: 不改 img.src! 占位图正常 fetch, 真实图替换时也能正常 load
-        img.style.setProperty('visibility', 'hidden', 'important');
-        img.style.setProperty('opacity', '0', 'important');
-        img.style.setProperty('pointer-events', 'none', 'important');
-
-        // 2. 父元素 inline position: relative (specificity 1,0,0,0 + !important, 覆盖 page CSS)
+        // 1. 父元素 inline position: relative (specificity 1,0,0,0 + !important, 覆盖 page CSS)
         container.style.setProperty('position', 'relative', 'important');
 
-        // 3. 真 DOM 覆盖层 (inline z-index: 2147483647, 任何 stacking context 下都最上层)
+        // 2. 覆盖层 div (inline z-index 2147483647 = int32 max, 任何 stacking context 下都最上层)
         const cover = document.createElement('div');
         cover.className = 'tm-dc-cover';
         cover.setAttribute('data-dc-cover', '1');
@@ -96,7 +58,7 @@
         cover.style.setProperty('pointer-events', 'none', 'important');
         cover.style.setProperty('filter', 'none', 'important');
 
-        // 4. 文字 badge (居中, badge-sized, 双行: 中文 + 英文)
+        // 3. 文字 badge (居中, badge-sized, 双行: 中文 + 英文)
         const textWrap = document.createElement('div');
         textWrap.style.setProperty('position', 'absolute', 'important');
         textWrap.style.setProperty('top', '50%', 'important');
@@ -129,18 +91,13 @@
         cover.appendChild(textWrap);
         container.insertBefore(cover, img);
 
-        // 5. cleanup 策略 (v1.1.9 改进):
-        //    - 触发条件 1: src 变化 (lazy-load 触发) → 立即清理 (不等 img.complete, 避免真实图加载慢时长期黑框)
-        //    - 触发条件 2: 5s 兜底 → 强制清理, 让用户至少看到原图 (避免永久占位图场景永远漆黑)
-        //    - 不再用 img.complete 作为清理条件: 真实图加载慢时, "白闪" 比 "永久黑框" 体验好
+        // 4. cleanup: 加载完成 (有内容) 时移除 cover
+        //    broken 图 (404) naturalHeight = 0, 不立即清理, 5s 兜底后用户能看到 broken icon
         let cleaned = false;
         let fallbackTimer = null;
         const doCleanup = () => {
             if (cleaned) return;
             cleaned = true;
-            img.style.removeProperty('visibility');
-            img.style.removeProperty('opacity');
-            img.style.removeProperty('pointer-events');
             if (cover.parentNode) cover.parentNode.removeChild(cover);
             delete img.dataset.dcHandled;
             img.removeEventListener('load', cleanup);
@@ -149,10 +106,7 @@
             if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
         };
         const cleanup = () => {
-            if (cleaned) return;
-            const newSrc = img.currentSrc || img.src;
-            if (!isPlaceholder(newSrc)) {
-                // src 变化 (lazy-load 触发) → 立即清理
+            if (img.complete && img.naturalHeight > 0) {
                 doCleanup();
             }
         };
@@ -160,8 +114,7 @@
         img.addEventListener('error', cleanup);
         const observer = new MutationObserver(cleanup);
         observer.observe(img, { attributes: true, attributeFilter: ['src', 'srcset'] });
-        // 5s 兜底: 即使 lazy-load 没触发, 5s 后强制清理
-        // 让用户看到原图 (占位图 visible / 真实图), 避免永远漆黑
+        // 5s 兜底: 防止 broken / 卡住 / 永久 loading 永远 cover
         fallbackTimer = setTimeout(doCleanup, 5000);
     }
 
@@ -172,9 +125,9 @@
             for (const node of mutation.addedNodes) {
                 if (node.nodeType === 1) {
                     if (node.tagName === 'IMG') {
-                        applyDarkCover(node);
+                        applyLoadingCover(node);
                     } else if (node.querySelectorAll) {
-                        node.querySelectorAll('img').forEach(applyDarkCover);
+                        node.querySelectorAll('img').forEach(applyLoadingCover);
                     }
                 }
             }
@@ -189,9 +142,9 @@
     // readyState 兼容
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            document.querySelectorAll('img').forEach(applyDarkCover);
+            document.querySelectorAll('img').forEach(applyLoadingCover);
         });
     } else {
-        document.querySelectorAll('img').forEach(applyDarkCover);
+        document.querySelectorAll('img').forEach(applyLoadingCover);
     }
 })();

@@ -14,6 +14,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `localStorage` 开关
 - 暴露覆盖层颜色 / 透明度配置项
 
+## [1.1.10] - 2026-08-22
+
+### Changed
+- **重大设计转向：放弃"占位图隐藏"目标，回归"白闪保护"正确定位**
+  - v1.1.5~v1.1.9 连续 5 次尝试"占位图不显示 + 真实图显示 + 不漆黑" 全部翻车：
+    - v1.1.5: 占位图 visible（page CSS 抢回 visibility）
+    - v1.1.7: 改 src → 永久占位图永远不显示真实图
+    - v1.1.8: visibility/opacity/cover 三保险 → 永远漆黑
+    - v1.1.9: 5s 兜底 → "跟没加脚本一模一样"
+  - **根因**：darkComplete 抢占了本该是 Dark Reader 的职责（占位图颜色反转）
+  - **修法**：v1.1.10 退回 v1.0.0 的简单 design——**darkComplete 只做"白闪保护"**：
+    - 监听 `img.complete === false`（图片未加载）→ 加 cover div 盖住
+    - 监听 `img.complete && img.naturalHeight > 0`（图片已加载且有内容）→ 移除 cover
+    - **不判定 src 是不是占位图**（之前 v1.1.5~v1.1.9 的 PLACEHOLDER_PATTERNS 全部删除）
+    - **不再 inline 隐藏 img**（让 Dark Reader / Stylus 接管占位图颜色反转）
+    - cover div z-index 2147483647（v1.1.7 的经验保留）抗 stacking context
+    - 5s 兜底（v1.1.9 的经验保留）避免永远 cover
+- **删除** `PLACEHOLDER_PATTERNS` / `isPlaceholder` / fast path CSS（占位图 src 模式 visibility: hidden）
+- **删除** v1.1.5~v1.1.9 的 inline `visibility: hidden` / `opacity: 0` / `pointer-events: none` 隐藏机制
+
+### Philosophy
+- **darkComplete = enhancement layer for dark mode extensions**
+  - Layer 1（颜色反转、图片滤镜、CSS 变量）= Dark Reader / Stylus
+  - Layer 2（白闪保护、未加载占位）= darkComplete
+  - **永远不要越界做 Layer 1 的事**
+
+### Tested
+- 3 个场景验证
+  - 真实图加载：cover 加载完移除 ✅
+  - 占位图：cover 加载完移除 + img visible（Dark Reader 接管颜色反转）✅
+  - lazy-load：cover 加载完移除 + 真实图 visible ✅
+
+### Note
+bump 1.1.9 → 1.1.10。**v1.1.5~v1.1.10 连续 6 次大改教训**：darkComplete 试图解决"占位图隐藏"是不现实的——**这是 Dark Reader 的职责**。v1.1.10 退回 v1.0.0 design + 5s 兜底 + z-index 2147483647，**做正确的事**。
+
 ## [1.1.9] - 2026-08-22
 
 ### Fixed
