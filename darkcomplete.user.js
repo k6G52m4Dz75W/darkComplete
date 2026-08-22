@@ -37,9 +37,9 @@
     // 跟踪图片处理状态
     const PROCESS_ATTR = 'data-dark-processed';
 
-    // 占位符背景图 (深色"图片占位"图标, 见 ./placeholder.svg)
+    // 占位符背景图 (双行文字: "正在载入……" / "Loading...", 见 ./placeholder.svg)
     const PLACEHOLDER_DATA_URI =
-        'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+CiAgICA8IS0tIOa3seiJsuWchuinkuW6lSwg5LiO5pqX6Imy5qih5byP6IOM5pmv5ZKM6LCQIC0tPgogICAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iNiIgZmlsbD0iIzFhMWExYSIvPgoKICAgIDwhLS0g55u45qGGICjlnIbop5Lnn6nlvaLmj4/ovrkpIC0tPgogICAgPHJlY3QgeD0iMTQiIHk9IjE4IiB3aWR0aD0iMzYiIGhlaWdodD0iMjgiIHJ4PSIyIiBmaWxsPSJub25lIiBzdHJva2U9IiM0YTRhNGEiIHN0cm9rZS13aWR0aD0iMiIvPgoKICAgIDwhLS0g5bem5LiK6KeS5aSq6ZizICjlnIbngrkpIC0tPgogICAgPGNpcmNsZSBjeD0iMjIiIGN5PSIyNiIgcj0iMyIgZmlsbD0iIzRhNGE0YSIvPgoKICAgIDwhLS0g5bGx5bOw6L2u5buTICjmipjnur8pIC0tPgogICAgPHBhdGggZD0iTSAxNCA0NiBMIDI0IDM0IEwgMzIgNDAgTCA0MCAzMiBMIDUwIDQ2IgogICAgICAgICAgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNGE0YTRhIiBzdHJva2Utd2lkdGg9IjIiCiAgICAgICAgICBzdHJva2UtbGluZWpvaW49InJvdW5kIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPC9zdmc+Cg==';
+        'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+CiAgICA8IS0tIOa3seiJsuWchuinkuW6lSAtLT4KICAgIDxyZWN0IHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgcng9IjYiIGZpbGw9IiMxYTFhMWEiLz4KCiAgICA8IS0tIOS4u+ihjDog5q2j5Zyo6L295YWl4oCm4oCmICjkuK0sIGZvbnQtc3RhY2sg5ZCrIENKSyBmYWxsYmFjaykgLS0+CiAgICA8dGV4dCB4PSIzMiIgeT0iMjgiIHRleHQtYW5jaG9yPSJtaWRkbGUiCiAgICAgICAgICBmb250LWZhbWlseT0iLWFwcGxlLXN5c3RlbSwgQmxpbmtNYWNTeXN0ZW1Gb250LCAnU2Vnb2UgVUknLCAnUGluZ0ZhbmcgU0MnLCAnTWljcm9zb2Z0IFlhSGVpJywgJ0hpcmFnaW5vIFNhbnMgR0InLCAnTm90byBTYW5zIENKSyBTQycsIHNhbnMtc2VyaWYiCiAgICAgICAgICBmb250LXNpemU9IjEwIiBmb250LXdlaWdodD0iNTAwIiBmaWxsPSIjYzBjMGMwIj7mraPlnKjovb3lhaXigKbigKY8L3RleHQ+CgogICAgPCEtLSDlia/ooYw6IExvYWRpbmcuLi4gKOiLsSkgLS0+CiAgICA8dGV4dCB4PSIzMiIgeT0iNDQiIHRleHQtYW5jaG9yPSJtaWRkbGUiCiAgICAgICAgICBmb250LWZhbWlseT0iLWFwcGxlLXN5c3RlbSwgQmxpbmtNYWNTeXN0ZW1Gb250LCAnU2Vnb2UgVUknLCBzYW5zLXNlcmlmIgogICAgICAgICAgZm9udC1zaXplPSI3IiBmaWxsPSIjODA4MDgwIj5Mb2FkaW5nLi4uPC90ZXh0Pgo8L3N2Zz4K';
 
     // ============ 注入 CSS ============
 
@@ -57,7 +57,7 @@
             background-image: url("${PLACEHOLDER_DATA_URI}") !important;
             background-repeat: no-repeat !important;
             background-position: center center !important;
-            background-size: 32px 32px !important;
+            background-size: contain !important;
         }
 
         /* === Class-based: JS 检测到占位图时加到 <img> 上 ===
@@ -67,7 +67,7 @@
             background-image: url("${PLACEHOLDER_DATA_URI}") !important;
             background-repeat: no-repeat !important;
             background-position: center center !important;
-            background-size: 32px 32px !important;
+            background-size: contain !important;
             transition: background-color 0.15s ease;
         }
 

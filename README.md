@@ -17,7 +17,7 @@ darkComplete 用 JavaScript 接管这些"CSS 力所不能及"的 DOM 状态，�
 
 ![darkComplete icon](./icon.svg) &nbsp; **`[icon.svg](./icon.svg)`** — 64×64 viewBox 免版税 SVG：黑色圆角底 + 弯月 + 四角星。所有元素在 16×16 也能识别，Tampermonkey 列表里看着也清晰。
 
-> 还有一份占位图源文件：[**`placeholder.svg`**](./placeholder.svg) —— 64×64 深色"图片占位"图标，base64 内嵌进 `darkcomplete.user.js` 作 `<img>` 的 `background-image`。
+> 还有一份占位图源文件：[**`placeholder.svg`**](./placeholder.svg) —— 64×64 深色"图片占位"图标（含双行文字"正在载入……" / "Loading..."），base64 内嵌进 `darkcomplete.user.js` 作 `<img>` 的 `background-image`（`background-size: contain`，随图片尺寸缩放）。
 
 ## 🧩 与其他暗色模式扩展的关系
 
