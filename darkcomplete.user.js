@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         darkComplete
 // @namespace    https://github.com/k6G52m4Dz75W/darkComplete
-// @version      1.1.1
+// @version      1.1.2
 // @description  专为暗色模式扩展 (如 Dark Reader) 锦上添花。JS 接管 CSS 看不见的瞬间——未加载图片、懒加载、占位图——把暗色模式体验从 99% 推到 100%。The icing on the dark mode cake for existing extensions.
 // @author       darkComplete Contributors
 // @match        *://*/*
@@ -48,12 +48,14 @@
         /* === Fast path: 常见占位图 src 模式 ===
            这几条规则在 stylesheet 注入即生效, 不需要 JS 运行, 大幅压缩"闪白→覆盖"窗口.
            若想添加新模式, 同步在 JS 的 PLACEHOLDER_PATTERNS 里加正则即可.
+           visibility: hidden 隐藏原图 (因为原图是不透明的, 会遮挡我们的 background-image)
            filter: none 防止 Dark Reader 等扩展反转我们的深色占位. */
         img[src*="loading"],
         img[src*="blank"],
         img[src*="placeholder"],
         img[src*="transparent"],
         img[src*="spacer"] {
+            visibility: hidden !important;
             background-color: #1a1a1a !important;
             background-image: url("${PLACEHOLDER_DATA_URI}") !important;
             background-repeat: no-repeat !important;
@@ -64,8 +66,10 @@
 
         /* === Class-based: JS 检测到占位图时加到 <img> 上 ===
            覆盖 fast path 漏掉的 (例如 data:image/* URI)
+           visibility: hidden 同样隐藏原图
            filter: none 防止 Dark Reader 等扩展反转我们的深色占位 (但仅限 loading 期间) */
         img.${LOADING_CLASS} {
+            visibility: hidden !important;
             background-color: #1a1a1a !important;
             background-image: url("${PLACEHOLDER_DATA_URI}") !important;
             background-repeat: no-repeat !important;
@@ -75,8 +79,10 @@
             transition: background-color 0.15s ease;
         }
 
-        /* === 父元素 ::after 兜底: 任何机制失效时仍有黑色覆盖 ===
-           例如浏览器对 background-image 渲染失败, 或图片 src 在 CSS 注入后才变化 */
+        /* === 父元素 ::after 实际显示占位图 ===
+           关键: <img> 用 visibility: hidden 隐藏原图 (顺便隐藏了 img 自己的 background),
+           真正的占位由 ::after 在父元素层面渲染 (不受 <img> visibility 影响, z-index 999999 永远在最上层)
+           这里同时挂 background-color 和 background-image, 任何时候都至少有一层深色 + 文字占位 */
         .${STYLE_CLASS}-container:not([data-dark-parent-rel]) {
             position: relative !important;
         }
@@ -89,6 +95,10 @@
             width: 100% !important;
             height: 100% !important;
             background-color: #000000 !important;
+            background-image: url("${PLACEHOLDER_DATA_URI}") !important;
+            background-repeat: no-repeat !important;
+            background-position: center center !important;
+            background-size: contain !important;
             z-index: 999999 !important;
             pointer-events: none !important;
             display: block !important;

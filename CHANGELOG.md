@@ -15,6 +15,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 暴露覆盖层颜色 / 透明度配置项
 - 占位图大小上限（避免大图下文字过大）— `background-size: clamp(32px, 50%, 96px)` 候选
 
+## [1.1.2] - 2026-08-22
+
+### Fixed
+- **占位图（gif/loading/blank 等）仍可见**：v1.1.0 重写时丢了 v1.0.0 的 `visibility: hidden`，导致原图（不透明 gif）盖在 background-image 上面，用户看到的是原图而不是我们的深色占位
+- **修正思路**：visibility: hidden 隐藏 `<img>`（连带隐藏 img 自己的 background，但没关系）→ 占位由父元素 `::after` 实际渲染（不受 `<img>` visibility 影响，z-index 999999 在最上层）
+- 顺手给 `.${STYLE_CLASS}-container::after` 也加 `background-image: url(PLACEHOLDER_DATA_URI)`，现在所有 `::after` 都会显示占位图（"正在载入……" / "Loading..."），不只是纯黑
+
+### Architecture change
+- **核心架构修正**：`visibility: hidden` 在 img 上, `::after` 在父元素上 —— 这才是正确分层
+- img 自己保留 `background-image` 作为"如果父元素 `::after` 完全失败"的最后一道防线（但通常被 visibility: hidden 隐藏）
+- `::after` 才是用户实际看到的占位（z-index 999999 永远覆盖 img）
+
+### Note
+bump 1.1.1 → 1.1.2。**真正的"渐进式图片遮罩"现在两层都正确**：img 隐藏原图 + ::after 显示深色占位。
+
 ## [1.1.1] - 2026-08-22
 
 ### Fixed
