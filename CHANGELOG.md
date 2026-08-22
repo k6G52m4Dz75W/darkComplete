@@ -14,6 +14,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `localStorage` 开关
 - 暴露覆盖层颜色 / 透明度配置项
 
+## [1.1.9] - 2026-08-22
+
+### Fixed
+- **永久占位图场景下永远漆黑**（v1.1.8 的最后翻车）
+  - 根因：v1.1.8 的 cleanup 条件 `!isPlaceholder(newSrc) && img.complete`，依赖 lazy-load 库触发换 src + 真实图加载完成。但如果网站 lazy-load 库**不触发**（永久占位图 / lazy-load 库被 page CSS 干扰 / Dark Reader 干扰 / shadow DOM），src 永远不变，cover 永远在，**用户看到永远的黑框**
+  - 验证：在 lozad.js (IntersectionObserver) 真实 lazy-load 测试中 v1.1.8 正常（cover 正确清理），但用户实际网站可能 lazy-load 不触发
+  - 修法：v1.1.9 加**双触发 cleanup 路径**：
+    1. **src 变化立即清理**（不等 `img.complete`）—— lazy-load 触发立刻恢复 img 可见
+    2. **5s 兜底**：即使 src 永远不变（永久占位图 / lazy-load 不触发），**5s 后强制清理 cover + 还原 img visibility/opacity**——让用户至少看到原图
+  - trade-off：永久占位图 5s 后用户看到占位图 visible（v1.1.5 老行为），但**永远不会再黑框**
+
+### Changed
+- cleanup 函数拆成 `doCleanup`（统一清理逻辑）+ `cleanup`（条件判断 + 调度 doCleanup）
+- 移除 `img.complete` 检查（之前 v1.1.8 的清理条件）—— src 变化就清理
+- 新增 5s setTimeout 兜底 —— 必触发
+
+### Tested
+- 写 `test-v1.1.9.html` 2 个真实场景验证
+  - 永久占位图（5s 后兜底）：cover 移除 + "PERMANENT PLACEHOLDER" 显示 ✅
+  - lazy-load src 变化（1s 后触发）：cover 立即移除 + 真实图显示 ✅
+
+### Note
+bump 1.1.8 → 1.1.9。**v1.1.7~v1.1.8 三次连续大改**都翻车——核心教训：**darkComplete 不能依赖 lazy-load 库一定触发换 src**。v1.1.9 的 5s 兜底保证**最坏情况是 5s 后看到原图**，**永远不会再永远黑框**。**这才是"渐进式图片遮罩"应该有的底线**。
+
 ## [1.1.8] - 2026-08-22
 
 ### Fixed

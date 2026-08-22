@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         darkComplete
 // @namespace    https://github.com/k6G52m4Dz75W/darkComplete
-// @version      1.1.8
+// @version      1.1.9
 // @description  专为暗色模式扩展 (如 Dark Reader) 锦上添花。JS 接管 CSS 看不见的瞬间——未加载图片、懒加载、占位图——把暗色模式体验从 99% 推到 100%。The icing on the dark mode cake for existing extensions.
 // @author       darkComplete Contributors
 // @match        *://*/*
@@ -129,28 +129,40 @@
         cover.appendChild(textWrap);
         container.insertBefore(cover, img);
 
-        // 5. cleanup: 真实图加载完成时移除 inline 隐藏 style + 移除 cover
+        // 5. cleanup 策略 (v1.1.9 改进):
+        //    - 触发条件 1: src 变化 (lazy-load 触发) → 立即清理 (不等 img.complete, 避免真实图加载慢时长期黑框)
+        //    - 触发条件 2: 5s 兜底 → 强制清理, 让用户至少看到原图 (避免永久占位图场景永远漆黑)
+        //    - 不再用 img.complete 作为清理条件: 真实图加载慢时, "白闪" 比 "永久黑框" 体验好
         let cleaned = false;
+        let fallbackTimer = null;
+        const doCleanup = () => {
+            if (cleaned) return;
+            cleaned = true;
+            img.style.removeProperty('visibility');
+            img.style.removeProperty('opacity');
+            img.style.removeProperty('pointer-events');
+            if (cover.parentNode) cover.parentNode.removeChild(cover);
+            delete img.dataset.dcHandled;
+            img.removeEventListener('load', cleanup);
+            img.removeEventListener('error', cleanup);
+            observer.disconnect();
+            if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
+        };
         const cleanup = () => {
             if (cleaned) return;
             const newSrc = img.currentSrc || img.src;
-            if (!isPlaceholder(newSrc) && img.complete) {
-                // 真实图加载完成: 还原 img + 移除覆盖
-                cleaned = true;
-                img.style.removeProperty('visibility');
-                img.style.removeProperty('opacity');
-                img.style.removeProperty('pointer-events');
-                if (cover.parentNode) cover.parentNode.removeChild(cover);
-                delete img.dataset.dcHandled;
-                img.removeEventListener('load', cleanup);
-                img.removeEventListener('error', cleanup);
-                observer.disconnect();
+            if (!isPlaceholder(newSrc)) {
+                // src 变化 (lazy-load 触发) → 立即清理
+                doCleanup();
             }
         };
         img.addEventListener('load', cleanup);
         img.addEventListener('error', cleanup);
         const observer = new MutationObserver(cleanup);
         observer.observe(img, { attributes: true, attributeFilter: ['src', 'srcset'] });
+        // 5s 兜底: 即使 lazy-load 没触发, 5s 后强制清理
+        // 让用户看到原图 (占位图 visible / 真实图), 避免永远漆黑
+        fallbackTimer = setTimeout(doCleanup, 5000);
     }
 
     // ============ 启动 ============
