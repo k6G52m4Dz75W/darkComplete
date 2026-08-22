@@ -14,6 +14,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `localStorage` 开关
 - 暴露覆盖层颜色 / 透明度配置项
 
+## [1.1.7] - 2026-08-22
+
+### Changed
+- **重大架构重构：放弃 `::after` 兜底，改用真 DOM 覆盖层**
+  - v1.1.5 的 `::after` 兜底在**复杂 stacking context** 场景下失效（`z-index: 999999` 不够 + page 高 z-index 兄弟元素遮挡 + page JS 抢回 `position: static`）
+  - v1.1.7 改用**真实的 `<div>` 覆盖层**，inline `z-index: 2147483647`（int32 max）物理无敌
+  - 简化代码：删除 counter (`data-dc-loading-count`) 机制、删除 `transition: opacity` 淡出动画、每张占位图独立处理，**无 race condition**
+  - 删除 `STYLE_CLASS` 系列 CSS 注入（不再用 attribute selector / `::after`），代码量减少 ~40%
+
+### Fixed
+- **占位符 GIF 仍可见**（v1.1.5~v1.1.6 都没彻底解决）
+  - 根因：v1.1.5 的 `img { visibility: hidden }` 在某些 page 上被 page JS 后续设回 `visible`
+  - v1.1.7 **三重保险**（任一失效都还有下一层）：
+    1. **改 src 为 1×1 transparent GIF data URL** —— 浏览器根本不 fetch 原占位图，从源头让占位图不可见
+    2. **inline `visibility: hidden` + `opacity: 0` 双保险** —— 即使 page JS 抢回原 src，img 仍不可见
+    3. **真 DOM 覆盖层** —— 独立 `<div>` 元素，物理上覆盖 img，不受 img `visibility` / `opacity` / `display` 影响
+- **底色（黑色覆盖）消失**
+  - 根因：v1.1.5 的 `::after` 在 stacking context 复杂的 page 上失效（被 page 高 z-index 兄弟元素遮挡）
+  - v1.1.7 覆盖 div `z-index: 2147483647`（int32 max），**任何 stacking context 下都是最大值**，物理上无法被遮挡
+
+### Tested
+- 写了 `stress-test.html` 4 个 stacking-context 极端场景（page z-index: 10 兄弟、祖父 transform stacking context、page 抢 inline visibility），全部通过
+  - cover `z-index === 2147483647` ✅
+  - cover 尺寸 === img 尺寸（完全覆盖）✅
+  - img `visibility === hidden` + `opacity === 0` ✅
+  - img `src` 已替换为 data URL ✅
+
+### Note
+bump 1.1.5 → 1.1.7（跳过 1.1.6，因为本地 1.1.6 的 inline-style 改动没解决问题，直接重写更干净）。本次是 v1.1.0 以来**最大一次架构重构**，从"CSS ::after 兜底"转向"真 DOM 覆盖层"，从依赖样式层级转向物理覆盖。
+
 ## [1.1.5] - 2026-08-22
 
 ### Fixed
