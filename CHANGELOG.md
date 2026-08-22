@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `localStorage` 开关
 - 暴露覆盖层颜色 / 透明度配置项
 
+## [1.1.4] - 2026-08-22
+
+### Fixed
+- **多张图共享父元素时, 第一张加载完会清掉后续图的占位**: 同一个父元素下有多张占位图 (图库/feed 场景), 第一张加载完 150ms 后, setTimeout 无脑清掉了父元素的 container + show-text class, 导致后续图只剩黑底没文字
+- **修法**: 给每个父元素加 `data-dc-loading-count` 计数器
+  - applyCssDarkPlaceholder: 计数器 +1
+  - tryRemoveOverlay / error handler: 计数器 -1, **仅当计数 = 0** 才执行 fade-out + 清 class
+  - 中间任何时点来新图, 计数 > 0 都不会触发清场
+- 结果: 图库里第一张加载完, 第二张/第三张仍能正常显示深色 + "正在载入……" badge
+
+### Note
+bump 1.1.3 → 1.1.4。修复多图场景下的类清理 race condition。
+
 ## [1.1.3] - 2026-08-22
 
 ### Fixed
