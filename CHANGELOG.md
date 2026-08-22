@@ -14,6 +14,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `localStorage` 开关
 - 暴露覆盖层颜色 / 透明度配置项
 
+## [1.1.5] - 2026-08-22
+
+### Fixed
+- **第二轮 race condition: v1.1.4 的计数器还漏了两个时序问题**
+  1. **新图进入时没撤销前图的 done 状态**: 前一张图加载完时挂上 `done` class (::after opacity 0), 后一张图进入时只加了 container + show-text, 但没清 done, 导致 ::after 仍被淡出
+  2. **setTimeout 是 fire-and-forget**: 第一张图的 setTimeout 150ms 后无脑清 class, 即使中途又来了新图 (count 已不是 0)
+- **修法**:
+  1. applyCssDarkPlaceholder 末尾加 `container.classList.remove('done')` —— **任何**新图进入都强制撤销 done 状态
+  2. setTimeout 内二次检查 `data-dc-loading-count`: >0 就 return, 跳过清场
+- 影响: 图库场景下, 中间插入的新图不会再被前图的 setTimeout 误清, 也不会因前图残留的 done 而不可见
+
+### Note
+bump 1.1.4 → 1.1.5。**第三次**修同类问题, 这次加上了**双重保险** (撤销 done + setTimeout 重查)。
+
 ## [1.1.4] - 2026-08-22
 
 ### Fixed

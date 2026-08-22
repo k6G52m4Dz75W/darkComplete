@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         darkComplete
 // @namespace    https://github.com/k6G52m4Dz75W/darkComplete
-// @version      1.1.4
+// @version      1.1.5
 // @description  专为暗色模式扩展 (如 Dark Reader) 锦上添花。JS 接管 CSS 看不见的瞬间——未加载图片、懒加载、占位图——把暗色模式体验从 99% 推到 100%。The icing on the dark mode cake for existing extensions.
 // @author       darkComplete Contributors
 // @match        *://*/*
@@ -155,6 +155,9 @@
             // 父元素下第一张加载中的图, 挂上 container
             container.classList.add(`${STYLE_CLASS}-container`);
         }
+        // 关键: 任何新图进入, 都要撤销之前的 done 状态 (前一张加载完时挂的 done 会让 ::after opacity=0)
+        // 否则后面来的图看不到深色占位
+        container.classList.remove(`${STYLE_CLASS}-done`);
         // 仅真占位图才显示文字 (避免切下一张等普通慢加载场景被"晃瞎")
         // 注意: 任何一张当前加载中的图是 placeholder, 父元素就该 show-text
         if (placeholder) {
@@ -175,6 +178,10 @@
                 if (remaining === 0) {
                     container.classList.add(`${STYLE_CLASS}-done`);
                     setTimeout(() => {
+                        // 二次确认: 这 150ms 内可能又加了新图, count > 0 的话就别清场
+                        if (parseInt(container.dataset.dcLoadingCount || '0', 10) > 0) {
+                            return;
+                        }
                         container.classList.remove(`${STYLE_CLASS}-container`, `${STYLE_CLASS}-done`, `${STYLE_CLASS}-show-text`);
                         container.removeAttribute('data-dark-parent-rel');
                         container.removeAttribute('data-dc-loading-count');
@@ -200,6 +207,10 @@
             if (remaining === 0) {
                 container.classList.add(`${STYLE_CLASS}-done`);
                 setTimeout(() => {
+                    // 同上: 二次确认 count
+                    if (parseInt(container.dataset.dcLoadingCount || '0', 10) > 0) {
+                        return;
+                    }
                     container.classList.remove(`${STYLE_CLASS}-container`, `${STYLE_CLASS}-done`, `${STYLE_CLASS}-show-text`);
                     container.removeAttribute('data-dark-parent-rel');
                     container.removeAttribute('data-dc-loading-count');
