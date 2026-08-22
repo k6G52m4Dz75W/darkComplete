@@ -2,7 +2,7 @@
 // @name         darkComplete
 // @namespace    https://github.com/k6G52m4Dz75W/darkComplete
 // @version      1.0.0
-// @description  try to take over the world!
+// @description  暗色模式下用 CSS 覆盖层按掉未加载图片的刺眼亮色，补完深色模式的最后一公里。Mask the bright flash of loading images in dark mode.
 // @author       darkComplete Contributors
 // @match        *://*/*
 // @icon         data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==
@@ -22,7 +22,7 @@
             background-color: #000000 !important;
         }
 
-        .${STYLE_CLASS}-container {
+        .${STYLE_CLASS}-container:not([data-dark-parent-rel]) {
             position: relative !important;
         }
 
@@ -57,39 +57,52 @@
         if (!img || img.tagName !== 'IMG' || img.getAttribute(PROCESS_ATTR) || !img.parentElement) return;
 
         const currentSrc = img.currentSrc || img.src;
-        if (img.complete && img.naturalWidth > 10 && !isPlaceholder(currentSrc)) {
+        // 已加载完成 + 非占位符 → 放过 (不依赖 naturalWidth > 10, 避免误伤小图标)
+        if (img.complete && !isPlaceholder(currentSrc)) {
             return;
         }
 
         img.setAttribute(PROCESS_ATTR, 'processing');
         const container = img.parentElement;
+
+        // 标记父元素是否已是非 static 定位, 决定是否给 container 加 position: relative
+        const parentPosition = getComputedStyle(container).position;
+        if (parentPosition === 'static') {
+            container.removeAttribute('data-dark-parent-rel');
+        } else {
+            container.setAttribute('data-dark-parent-rel', '');
+        }
         container.classList.add(`${STYLE_CLASS}-container`);
 
         const tryRemoveOverlay = () => {
             const nowSrc = img.currentSrc || img.src;
-            if (img.complete && img.naturalWidth > 10 && !isPlaceholder(nowSrc)) {
+            if (img.complete && !isPlaceholder(nowSrc)) {
                 container.classList.add(`${STYLE_CLASS}-done`);
                 img.setAttribute(PROCESS_ATTR, 'done');
 
                 setTimeout(() => {
-                    if (container.classList.contains(`${STYLE_CLASS}-container`)) {
-                        container.classList.remove(`${STYLE_CLASS}-container`);
-                        container.classList.remove(`${STYLE_CLASS}-done`);
-                    }
+                    container.classList.remove(`${STYLE_CLASS}-container`, `${STYLE_CLASS}-done`);
+                    container.removeAttribute('data-dark-parent-rel');
                 }, 120);
                 return true;
             }
             return false;
         };
 
-        const onCheck = () => {
-            if (!tryRemoveOverlay()) {
-                img.addEventListener('load', onCheck, { once: true });
-            }
-        };
-
+        // load 监听器只注册一次, 后续由 attrObserver 兜底 (避免递归累积)
+        const onCheck = () => tryRemoveOverlay();
         img.addEventListener('load', onCheck, { once: true });
-        img.addEventListener('error', () => tryRemoveOverlay(), { once: true });
+
+        // 加载失败时 naturalWidth=0, tryRemoveOverlay 永远不通过, 必须直接收尾
+        img.addEventListener('error', () => {
+            container.classList.add(`${STYLE_CLASS}-done`);
+            img.setAttribute(PROCESS_ATTR, 'done');
+            attrObserver.disconnect();
+            setTimeout(() => {
+                container.classList.remove(`${STYLE_CLASS}-container`, `${STYLE_CLASS}-done`);
+                container.removeAttribute('data-dark-parent-rel');
+            }, 120);
+        }, { once: true });
 
         const attrObserver = new MutationObserver(() => {
             if (tryRemoveOverlay()) {
@@ -117,7 +130,12 @@
         observer.observe(document.documentElement, { childList: true, subtree: true });
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
+    // 不依赖 DOMContentLoaded 触发时机: readyState 已是 interactive/complete 时立即扫
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('img').forEach(applyCssDarkPlaceholder);
+        });
+    } else {
         document.querySelectorAll('img').forEach(applyCssDarkPlaceholder);
-    });
+    }
 })();
