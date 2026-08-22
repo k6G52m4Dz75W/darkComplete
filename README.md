@@ -131,6 +131,10 @@ darkComplete 用 JavaScript 接管这些"CSS 力所不能及"的 DOM 状态，�
 | `STYLE_CLASS` | `tm-image-dark-placeholder` | 注入到图片容器的 class 前缀，避免与原站 CSS 冲突 |
 | overlay 背景色 | `#000000` | 默认纯黑；如需更柔和可改为 `#0a0a0a` |
 
+## 📝 更新日志
+
+详见 [CHANGELOG.md](./CHANGELOG.md)。按 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式编写，[Semantic Versioning](https://semver.org/lang/zh-CN/) 语义化版本。
+
 ## 🤝 贡献
 
 欢迎提 Issue / PR。提交前请确保：
