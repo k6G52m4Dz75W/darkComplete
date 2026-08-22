@@ -15,6 +15,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 暴露覆盖层颜色 / 透明度配置项
 - 占位图大小上限（避免大图下文字过大）— `background-size: clamp(32px, 50%, 96px)` 候选
 
+## [1.1.1] - 2026-08-22
+
+### Fixed
+- **Dark Reader / 颜色反转扩展兼容**：占位图的 `background-color: #1a1a1a` 和父元素 `::after { background: #000 }` 被 Dark Reader 的 `filter: invert(1) hue-rotate(180deg)` 反转成白色，导致占位期间整片"纯白"（覆盖了本应深色的占位图 + 文字）
+- 修法：给占位期间的相关元素加 `filter: none !important`，**仅在占位状态下**屏蔽颜色反转：
+  - `img.${LOADING_CLASS}` —— 保护 background-image 占位图
+  - `img[src*="loading/blank/placeholder/transparent/spacer"]` (fast path) —— 同上
+  - `.${STYLE_CLASS}-container::after` —— 保护黑色 `::after` 兜底层
+- 加载完成后 `LOADING_CLASS` 被移除、`::after` opacity 归 0，**Dark Reader 的滤镜自动恢复**，真实图片正常被处理。**无副作用**。
+
+### Note
+本版本纯 fix，无功能 / 视觉变化。bump 1.1.0 → 1.1.1（patch 级别：向下兼容的问题修复）。
+
 ## [1.1.0] - 2026-08-22
 
 ### Added

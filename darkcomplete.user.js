@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         darkComplete
 // @namespace    https://github.com/k6G52m4Dz75W/darkComplete
-// @version      1.1.0
+// @version      1.1.1
 // @description  专为暗色模式扩展 (如 Dark Reader) 锦上添花。JS 接管 CSS 看不见的瞬间——未加载图片、懒加载、占位图——把暗色模式体验从 99% 推到 100%。The icing on the dark mode cake for existing extensions.
 // @author       darkComplete Contributors
 // @match        *://*/*
@@ -47,7 +47,8 @@
     styleNode.textContent = `
         /* === Fast path: 常见占位图 src 模式 ===
            这几条规则在 stylesheet 注入即生效, 不需要 JS 运行, 大幅压缩"闪白→覆盖"窗口.
-           若想添加新模式, 同步在 JS 的 PLACEHOLDER_PATTERNS 里加正则即可. */
+           若想添加新模式, 同步在 JS 的 PLACEHOLDER_PATTERNS 里加正则即可.
+           filter: none 防止 Dark Reader 等扩展反转我们的深色占位. */
         img[src*="loading"],
         img[src*="blank"],
         img[src*="placeholder"],
@@ -58,16 +59,19 @@
             background-repeat: no-repeat !important;
             background-position: center center !important;
             background-size: contain !important;
+            filter: none !important;
         }
 
         /* === Class-based: JS 检测到占位图时加到 <img> 上 ===
-           覆盖 fast path 漏掉的 (例如 data:image/* URI) */
+           覆盖 fast path 漏掉的 (例如 data:image/* URI)
+           filter: none 防止 Dark Reader 等扩展反转我们的深色占位 (但仅限 loading 期间) */
         img.${LOADING_CLASS} {
             background-color: #1a1a1a !important;
             background-image: url("${PLACEHOLDER_DATA_URI}") !important;
             background-repeat: no-repeat !important;
             background-position: center center !important;
             background-size: contain !important;
+            filter: none !important;
             transition: background-color 0.15s ease;
         }
 
@@ -88,6 +92,7 @@
             z-index: 999999 !important;
             pointer-events: none !important;
             display: block !important;
+            filter: none !important;
             transition: opacity 0.15s ease !important;
         }
 
