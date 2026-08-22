@@ -14,6 +14,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `localStorage` 开关
 - 暴露覆盖层颜色 / 透明度配置项
 
+## [1.1.11] - 2026-08-23
+
+### Changed
+- **重大思路突破（用户洞察）**：把占位图**整个替换**为暗色 SVG（含 "正在载入…… / Loading..." 文字 + 暗背景 #1a1a1a）
+  - v1.1.5~v1.1.10 连续 6 次翻车的根因：试图**遮住**占位图（cover div / inline visibility）——但**永远会撞上"遮住就漆黑" / "不遮就 visible" 二选一**
+  - **新思路**（来自用户 2026-08-23 反馈）：**改 src 本身**——把占位图 URL 替换为**暗色 SVG data URL**，img 元素**自身就显示暗色 + loading 文字**，**不需要任何 cover / 隐藏机制**
+  - v1.1.7 改 src 翻车是因为用了 1×1 transparent（img 元素变成"看不见的小像素"，漆黑）；**v1.1.11 用暗色 SVG（含文字）让 img 元素有内容，永远不漆黑**
+
+### Architecture
+- **v1.1.11 = 改 src 一次，物理解决**：
+  - 检测到占位图 → `img.src = 'data:image/svg+xml;base64,...'` (暗色 SVG)
+  - img 元素自身渲染暗色 SVG（暗背景 + 文字），**不依赖 cover div / stacking context / inline visibility**
+  - 真实图来时（page JS 改 src + img.complete）→ cleanup（dcHandled 移除，darkComplete 不再干预）
+  - **不需要 5s 兜底**（暗色 SVG 是 inline data URL，永远 complete、永远不卡）
+  - **不需要 inline visibility/opacity 隐藏**（page CSS 抢不回来，因为是 src 改变了）
+
+### Tested
+- 3 个场景验证全部通过
+  - 永久占位图：img 显示暗色 SVG（暗背景 + "正在载入……" + "Loading..."），永远不漆黑 ✅
+  - 真实图加载：cleanup 跑过，真实图正常显示 ✅
+  - lazy-load：src 变化 cleanup 跑过，真实图显示 ✅
+
+### Note
+bump 1.1.10 → 1.1.11。**用户的洞察是 v1.1.5~v1.1.10 整个系列翻车的根本解**——**别去"遮住"占位图，直接"替换"它**。v1.1.11 是 v1.1.7 的"改 src"思路 + 用户的"暗色 SVG 含文字"洞察的合并。
+
 ## [1.1.10] - 2026-08-22
 
 ### Changed
