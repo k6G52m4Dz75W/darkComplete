@@ -17,6 +17,8 @@ darkComplete 用 JavaScript 接管这些"CSS 力所不能及"的 DOM 状态，�
 
 ![darkComplete icon](./icon.svg) &nbsp; **`[icon.svg](./icon.svg)`** — 64×64 viewBox 免版税 SVG：黑色圆角底 + 弯月 + 四角星。所有元素在 16×16 也能识别，Tampermonkey 列表里看着也清晰。
 
+> 还有一份占位图源文件：[**`placeholder.svg`**](./placeholder.svg) —— 64×64 深色"图片占位"图标，base64 内嵌进 `darkcomplete.user.js` 作 `<img>` 的 `background-image`。
+
 ## 🧩 与其他暗色模式扩展的关系
 
 ```
@@ -48,9 +50,10 @@ darkComplete 用 JavaScript 接管这些"CSS 力所不能及"的 DOM 状态，�
 | 场景 | 没有 darkComplete | 装了 darkComplete |
 |---|---|---|
 | 页面刷新那一瞬间 | 全屏白光 → 慢慢暗下来 | 一开始就是黑的，平滑过渡 |
-| 滚动到懒加载区域 | 图片进入视口时闪一下亮 | 黑色占位 → 真实图淡入 |
+| 滚动到懒加载区域 | 图片进入视口时闪一下亮 | 深色"图片占位"图标 → 真实图淡入 |
 | 视频 poster 加载 | 黑屏或亮色 poster 闪一下 | 全黑背景，等 poster 来了再显 |
-| 占位图 (`data:image/gif,loading...`) | 仍然可见 | 被覆盖掉，看不见 |
+| 纯白占位图 (`white.png` / `blank.png` 等) | 刺眼白色方块 | 深色背景 + 图片占位图标 |
+| `data:image/...` 透明占位 | 闪白 | 立即被深色覆盖层接管 |
 | 图片加载失败 | 一直亮色 broken image | 失败时也正确移除覆盖层 |
 
 ## 🎯 适用人群
@@ -79,7 +82,7 @@ darkComplete 用 JavaScript 接管这些"CSS 力所不能及"的 DOM 状态，�
 
 ## 🛠️ 技术特性
 
-- 🌑 **DOM 即现即蒙**：`<img>` 一进 DOM 立刻加黑色 `::after` overlay，杜绝"亮图先闪一下"。
+- 🌑 **DOM 即现即蒙**：stylesheet 在 `@run-at document-start` 注入，常见占位图（`loading` / `blank` / `placeholder` / `transparent` / `spacer`）**首帧**就有深色背景 + 占位图标，杜绝"亮图先闪一下"。
 - 🪶 **零依赖零权限**：纯原生 JS，不请求任何 `@grant`，不读任何数据。
 - 🖼️ **全场景覆盖**：普通 `<img>`、懒加载（`data-src` / `srcset`）、占位图（`data:` URI / `loading.gif` / `placeholder`）、错误图片。
 - ⚡ **零运行时开销**：已加载的图片走 fast-path 立即跳过，`MutationObserver` 仅监听新插入节点。
@@ -102,29 +105,41 @@ darkComplete 用 JavaScript 接管这些"CSS 力所不能及"的 DOM 状态，�
 │  浏览器加载 <img>                                  │
 └──────────────────┬───────────────────────────────┘
                    ▼
-        darkComplete 检测图片
-        ┌──────────────────────┐
-        │ src 是占位符/未加载？  │
-        └──────┬───────┬───────┘
-              │       │
-        Yes   │       │  No (fast-path, 跳过)
-              ▼       ▼
-   ┌────────────────────┐   直接放过
-   │ 给父元素加 ::after │   无任何操作
-   │ 黑色覆盖层 (0.1s)  │
-   └────────┬───────────┘
-            ▼
-   ┌────────────────────┐
-   │ 等图片 load / src  │
-   │ change / error     │
-   └────────┬───────────┘
-            ▼
-   ┌────────────────────┐
-   │ 真实图片就绪 → 淡出 │
-   │ 加载失败 → 立即移除  │
-   │ 覆盖层            │
-   └────────────────────┘
+    @run-at document-start 注入 stylesheet
+    ┌──────────────────────────────────┐
+    │ CSS Fast Path (5 种常见模式):     │
+    │  src 含 loading/blank/... 的图片  │
+    │  → 立即 background-color +       │
+    │    background-image: 占位 SVG    │
+    └──────────────┬───────────────────┘
+                   ▼
+        MutationObserver / DOMContentLoaded
+        JS 二次扫描, 给漏掉的占位图加 class
+        ┌──────────────────────────────────┐
+        │ data:image/* 等 fast path 漏掉的 │
+        │ → class .tm-image-dark-         │
+        │   placeholder-loading           │
+        │ → 同样 background-image 占位   │
+        └──────────────┬───────────────────┘
+                       ▼
+              父元素 ::after 黑底兜底
+              (任何机制失效时仍有遮挡)
+                       │
+                       ▼
+              真实图片加载完成
+              → 移除所有 class
+              → background / overlay 平滑淡出
 ```
+
+### 🎨 双层保险机制
+
+| 层 | 触发 | 范围 | 时机 |
+|---|---|---|---|
+| **CSS Fast Path** | `img[src*="loading/blank/placeholder/transparent/spacer"]` | 5 种最常见占位图 | stylesheet 注入即生效 |
+| **Class-based** | `img.tm-image-dark-placeholder-loading` | 任意 JS 识别的占位（含 data URI） | MutationObserver 捕获后 ~ms 级 |
+| **父元素 ::after** | `.tm-image-dark-placeholder-container::after` | 所有处理的图片 | JS 处理时挂上，作 fallback |
+
+> **为什么用 `background-image` 而不是 `::after`？** 挂在 `<img>` 自身的 `background-image` 是浏览器原生机制 —— 不破交互（`pointer-events` 不受影响），不破布局（不强制改父元素 `position`），且暗色占位 SVG 自带语义（"这是张图片但还没加载"），比纯黑更友好。
 
 ## 🔧 配置项
 
@@ -132,8 +147,14 @@ darkComplete 用 JavaScript 接管这些"CSS 力所不能及"的 DOM 状态，�
 
 | 常量 | 默认 | 含义 |
 |---|---|---|
-| `STYLE_CLASS` | `tm-image-dark-placeholder` | 注入到图片容器的 class 前缀，避免与原站 CSS 冲突 |
-| overlay 背景色 | `#000000` | 默认纯黑；如需更柔和可改为 `#0a0a0a` |
+| `PLACEHOLDER_PATTERNS` | `/^data:image\//i` + `/imgloading\|loading\.(gif\|png\|jpg\|webp)\|blank\|placeholder\|transparent\|spacer\|spinner/i` | 识别占位图的正则列表。**两处需同步修改**：JS 数组（动态检测）+ CSS 选择器（fast path） |
+| `STYLE_CLASS` | `tm-image-dark-placeholder` | 注入的 class 前缀，避免与原站 CSS 冲突 |
+| 占位图 SVG | `./placeholder.svg` (深色"图片占位"图标) | `<img>` 自身的 `background-image`，不破交互 |
+
+> 💡 想加新模式？比如想让 `avatar-default.jpg` 也走占位机制：
+> 1. JS 数组里加 `/avatar-default/i`
+> 2. CSS 里加 `img[src*="avatar-default"] { ... }`（注意 fast path 是固化在 stylesheet 里的）
+> 3. 改 `placeholder.svg` 同理：编辑源文件 → 用 PowerShell 重新生成 base64 → 替换 `PLACEHOLDER_DATA_URI` 常量
 
 ## 📝 更新日志
 
