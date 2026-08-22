@@ -14,6 +14,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `localStorage` 开关
 - 暴露覆盖层颜色 / 透明度配置项
 
+## [1.1.8] - 2026-08-22
+
+### Fixed
+- **图片完全变成黑框**（v1.1.7 翻车）
+  - 根因：v1.1.7 改 `img.src` 为 1×1 transparent GIF data URL，**破坏了"占位图就是永久的"场景**。很多网站 img src 直接是 `imgloading.gif`，没有 `data-src` 之类的 lazy-load 触发机制（占位图就是永久的）。v1.1.7 改 src 后，真实图永远不来，cover 永远在，**图片永远不显示**
+  - 修法：v1.1.8 **完全不碰 img.src**。回到 v1.1.6 的思路，只用三重保险隐藏 img：
+    1. inline `visibility: hidden !important`（page JS 抢回 visible 也 OK）
+    2. inline `opacity: 0 !important`（双保险，即使 visibility 被抢回仍隐藏）
+    3. 真 DOM `<div>` 覆盖层（`z-index: 2147483647`，物理上覆盖 img，任何 stacking context 下都最上层）
+
+### Changed
+- **删除 v1.1.7 的"改 src 为 data URL"机制** —— 想得太美，破坏永久占位图场景
+- **删除 v1.1.7 cleanup 的 "isPlaceholder 重新应用" 分支** —— 不再需要
+- cleanup 条件保持 v1.1.7：`!isPlaceholder(newSrc) && img.complete` —— 真实图加载完成时清理
+- 真实图（http URL）正常 fetch、显示，永久占位图（imgloading.gif）保持 cover 黑框（by design）
+
+### Tested
+- 写了 `regression-test-v1.1.8.html` 3 个真实场景验证
+  - 永久占位图：cover 完整 + img 隐藏 + 黑框显示 ✅
+  - lazy-load cleanup：real.jpg 加载完成后 cover 移除 + 真实图显示 ✅
+  - page 抢 inline visibility：cover 仍完整（opacity 0 + 物理覆盖 双保险）✅
+
+### Note
+bump 1.1.7 → 1.1.8。同一天内连续两次大改（1.1.7 → 1.1.8），因为 1.1.7 改 src 的方案在真实场景翻车。**最终设计**：v1.1.8 = v1.1.7 架构（真 DOM 覆盖层 z-index 2147483647） + v1.1.6 思路（不碰 src，只用 visibility+opacity 隐藏）。
+
 ## [1.1.7] - 2026-08-22
 
 ### Changed

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         darkComplete
 // @namespace    https://github.com/k6G52m4Dz75W/darkComplete
-// @version      1.1.7
+// @version      1.1.8
 // @description  专为暗色模式扩展 (如 Dark Reader) 锦上添花。JS 接管 CSS 看不见的瞬间——未加载图片、懒加载、占位图——把暗色模式体验从 99% 推到 100%。The icing on the dark mode cake for existing extensions.
 // @author       darkComplete Contributors
 // @match        *://*/*
@@ -20,10 +20,6 @@
         /^data:image\//i,                                       // data URI 一律视为占位
         /imgloading|loading\.(gif|png|jpg|webp)|blank|placeholder|transparent|spacer|spinner/i
     ];
-
-    // 1×1 transparent GIF —— 浏览器 fetch 后立即 1×1 透明, 完全不渲染原占位图
-    // 这是 v1.1.7 的核心: 占位图 URL 根本不会被加载, 从源头解决问题
-    const TRANSPARENT_GIF = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
     // ============ 工具函数 ============
 
@@ -50,20 +46,19 @@
     `;
     (document.head || document.documentElement).appendChild(styleNode);
 
-    // ============ 核心: 真 DOM 覆盖层 ============
+    // ============ 核心: 真 DOM 覆盖层 (v1.1.8 重写) ============
     //
-    // v1.1.7 架构改动:
-    //   ❌ 不再用 ::after 兜底 (z-index 受 stacking context 影响, 极端场景失效)
-    //   ❌ 不再用 counter/race condition 机制 (多图场景用"每图独立"替代)
-    //   ✅ 改 src 为 1×1 transparent GIF (占位图根本不被 fetch)
-    //   ✅ 真 <div> 覆盖层 (inline z-index: 2147483647 = int32 max)
-    //   ✅ inline visibility: hidden + opacity: 0 双保险隐藏原图
+    // v1.1.7 的 "改 src 为 1×1 transparent data URL" 思路在 **永久占位图场景**下翻车:
+    //   很多网站 img src 直接设为占位图 (如 imgloading.gif), 没有 data-src 之类的
+    //   lazy-load 触发机制, 占位图就是永久的. v1.1.7 改 src 之后, 真实图永远不来,
+    //   cover 永远在, **图片永远不显示**.
     //
-    // 为什么真 div 比 ::after 稳:
-    //   - ::after z-index 在父元素 stacking context 内, 父元素 z-index: auto
-    //     时跟其他 auto 元素按 DOM 顺序层叠, 容易被 page z-index: N 元素遮挡
-    //   - 真 div 同样有 stacking 问题, 但用 z-index: 2147483647 (int32 max)
-    //     在 *所有* stacking context 中都是最大值, 物理上无法被遮挡
+    // v1.1.8 退回去: 完全不碰 src, 只用三重保险隐藏 img:
+    //   1. inline visibility: hidden (page JS 抢回 visible 也 OK)
+    //   2. inline opacity: 0 (双保险, 即使 visibility 被抢回仍隐藏)
+    //   3. 真 <div> 覆盖层 (z-index 2147483647, 物理上覆盖 img, 任何 stacking context 下都最上层)
+    //
+    // 真实图加载完成时 cleanup 移除全部 inline style + 移除 cover, img 正常显示.
 
     function applyDarkCover(img) {
         if (!img || img.tagName !== 'IMG') return;
@@ -78,20 +73,16 @@
         const container = img.parentElement;
         if (!container) return;
 
-        // 1. 改 src 为 1×1 transparent (从源头让占位图不渲染)
-        //    data URL 浏览器立即 fetch 完, 1×1 不可见
-        img.dataset.dcOriginalSrc = img.src;
-        img.src = TRANSPARENT_GIF;
-
-        // 2. 隐藏 img (inline !important 双保险: 即使 page JS 抢回原占位 src, img 也不显示)
+        // 1. 隐藏 img (三保险: visibility + opacity + pointer-events)
+        //    关键: 不改 img.src! 占位图正常 fetch, 真实图替换时也能正常 load
         img.style.setProperty('visibility', 'hidden', 'important');
         img.style.setProperty('opacity', '0', 'important');
         img.style.setProperty('pointer-events', 'none', 'important');
 
-        // 3. 父元素 inline position: relative (specificity 1,0,0,0 + !important, 覆盖 page CSS)
+        // 2. 父元素 inline position: relative (specificity 1,0,0,0 + !important, 覆盖 page CSS)
         container.style.setProperty('position', 'relative', 'important');
 
-        // 4. 真 DOM 覆盖层 (inline z-index: 2147483647, 在任何 stacking context 中都最上层)
+        // 3. 真 DOM 覆盖层 (inline z-index: 2147483647, 任何 stacking context 下都最上层)
         const cover = document.createElement('div');
         cover.className = 'tm-dc-cover';
         cover.setAttribute('data-dc-cover', '1');
@@ -105,7 +96,7 @@
         cover.style.setProperty('pointer-events', 'none', 'important');
         cover.style.setProperty('filter', 'none', 'important');
 
-        // 5. 文字 badge (居中, badge-sized, 双行: 中文 + 英文)
+        // 4. 文字 badge (居中, badge-sized, 双行: 中文 + 英文)
         const textWrap = document.createElement('div');
         textWrap.style.setProperty('position', 'absolute', 'important');
         textWrap.style.setProperty('top', '50%', 'important');
@@ -138,7 +129,7 @@
         cover.appendChild(textWrap);
         container.insertBefore(cover, img);
 
-        // 6. 监听 src 变化 → 真实图加载完成时清理覆盖
+        // 5. cleanup: 真实图加载完成时移除 inline 隐藏 style + 移除 cover
         let cleaned = false;
         const cleanup = () => {
             if (cleaned) return;
@@ -154,12 +145,6 @@
                 img.removeEventListener('load', cleanup);
                 img.removeEventListener('error', cleanup);
                 observer.disconnect();
-            } else if (isPlaceholder(newSrc) && !img.dataset.dcHandled) {
-                // page 后续又把 src 改回占位, 重新应用
-                img.removeEventListener('load', cleanup);
-                img.removeEventListener('error', cleanup);
-                observer.disconnect();
-                applyDarkCover(img);
             }
         };
         img.addEventListener('load', cleanup);
