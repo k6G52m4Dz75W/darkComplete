@@ -14,6 +14,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `localStorage` 开关
 - 暴露覆盖层颜色 / 透明度配置项
 
+## [1.1.13] - 2026-08-23
+
+### Reverted
+- **回退 v1.1.12 的"统一入口" design**（用户 2026-08-23 反馈"占位符逻辑破坏了"）
+  - v1.1.12 把 v1.1.11 的 `applyDarkPlaceholder` 和新的 `applyLoadingCover` 合并到 `applyDarkOrLoadingCover` 统一入口
+  - 两个函数共享 `dataset.dcHandled` 标记, 实际行为有 corner case
+  - v1.1.13 退回 v1.1.11 完整主体 (一个字不改), blob URL 作为**完全独立**的模块
+
+### Added
+- **blob URL 模块独立化** (用户建议: "blob 至少目前最好单独处理, 能稳定了才融入主线")
+  - **模块 1 (v1.1.11 完整保留)**: 占位图 → 暗色 SVG. 用 `dataset.dcHandled` 标记
+  - **模块 2 (独立, 新增)**: blob URL 慢加载 → cover 盖住. 用 `dataset.dcBlobHandled` 标记 (不与模块 1 冲突)
+  - **独立 MutationObserver**: `blobObserver` 监听 DOM 树 (新加 img 节点)
+  - **独立 attrObserver**: `blobAttrObserver` 监听每个 blob URL img 的 src/srcset 变化 (捕获 page JS 改 src 为 blob URL)
+  - 模块 2 出问题不影响模块 1, 验证通过后可融入主线
+
+### Tested
+- 3 个场景验证两个模块互不干扰
+  - 占位图: 模块 1 处理, `dcHandled=1`, `dcBlobHandled=未设` ✅
+  - 真实图: 两个模块都不处理 ✅
+  - blob URL: 模块 2 处理, `dcBlobHandled=1` ✅
+
+### Note
+bump 1.1.12 → 1.1.13。**用户的"分两个独立模块"建议**让 v1.1.11 已稳定的占位图逻辑**完全保留**, blob URL 独立验证后再决定是否融入主线。
+
 ## [1.1.12] - 2026-08-23
 
 ### Added

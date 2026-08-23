@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         darkComplete
 // @namespace    https://github.com/k6G52m4Dz75W/darkComplete
-// @version      1.1.12
-// @description  专为暗色模式扩展 (如 Dark Reader) 锦上添花。把占位图 (imgloading.gif / blank.png 等) 替换为暗色 SVG, 同时给 blob URL 等慢加载图加白闪保护。The icing on the dark mode cake for existing extensions.
+// @version      1.1.13
+// @description  专为暗色模式扩展 (如 Dark Reader) 锦上添花。把占位图 (imgloading.gif / blank.png 等) 替换为暗色 SVG, blob URL 慢加载图加白闪保护 (独立模块)。The icing on the dark mode cake for existing extensions.
 // @author       darkComplete Contributors
 // @match        *://*/*
 // @run-at       document-start
@@ -13,20 +13,21 @@
 (function () {
     'use strict';
 
-    // ============ v1.1.12: 占位图替换 + blob URL 加载中保护 ============
+    // ============ v1.1.13: v1.1.11 主体回退 + blob URL 独立模块 ============
     //
-    // v1.1.11 解决了"占位图不显示"核心问题 (改 src 为暗色 SVG).
-    // v1.1.12 扩展: 处理 **blob URL 慢加载图** (网站用 blob URL 防下载).
-    //   - blob URL 加载中: 盖住避免白闪
-    //   - blob URL 加载完成: cleanup
-    //   - 5s 兜底: 卡住的图 5s 后强制清理 (img transparent 区域, 不是漆黑)
+    // v1.1.12 把"统一入口 applyDarkOrLoadingCover"引入, 但跟 v1.1.11 的 applyDarkPlaceholder
+    // 共享 dataset.dcHandled 标记, 实际行为有 corner case (用户反馈"占位符逻辑破坏了").
     //
-    // 关键 trade-off:
-    //   - 占位图永远走 v1.1.11 暗色 SVG 路径, 5s 兜底对占位图无影响
-    //   - "5s 后跟没装一样" 的旧问题只影响卡住的真实图 (透明区域), 不影响占位图
+    // v1.1.13 回退到 v1.1.11 完整主体, blob URL 作为**完全独立**的模块:
+    //   - 独立的 dataset.dcBlobHandled 标记 (不跟 dcHandled 冲突)
+    //   - 独立的 MutationObserver (不跟 main observer 冲突)
+    //   - 独立的 attrObserver (每个 blob URL img 单独 observe src 变化)
+    //   - blob URL 模块出问题不影响占位图逻辑
+    //
+    // "blob 至少目前最好单独处理, 能稳定了才融入主线" - 用户 2026-08-23 反馈
 
     const PLACEHOLDER_PATTERNS = [
-        /^data:image\//i,                                       // data URI 一律视为占位
+        /^data:image\//i,
         /imgloading|loading\.(gif|png|jpg|webp)|blank|placeholder|transparent|spacer|spinner/i
     ];
 
@@ -39,8 +40,7 @@
     const DARK_LOADING_SVG =
         'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgNjAiIHByZXNlcnZlQXNwZWN0UmF0aW89InhNaWRZTWlkIG1lZXQiPjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iNjAiIGZpbGw9IiMxYTFhMWEiLz48dGV4dCB4PSI1MCIgeT0iMzAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSItYXBwbGUtc3lzdGVtLCBCbGlua01hY1N5c3RlbUZvbnQsICdQaW5nRmFuZyBTQycsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNyIgZm9udC13ZWlnaHQ9IjUwMCIgZmlsbD0iI2MwYzBjMCI+5q2j5Zyo6L295YWl4oCm4oCmPC90ZXh0Pjx0ZXh0IHg9IjUwIiB5PSI0MiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgZm9udC1mYW1pbHk9Ii1hcHBsZS1zeXN0ZW0sIEJsaW5rTWFjU3lzdGVtRm9udCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSI1IiBmaWxsPSIjODA4MDgwIj5Mb2FkaW5nLi4uPC90ZXh0Pjwvc3ZnPg==';
 
-    // ============ CSS Fast Path ============
-    // 占位图 src 模式: 给 img 加暗背景色, 避免白闪窗口 (在 JS 跑前生效)
+    // ============ CSS Fast Path (v1.1.11 保留) ============
     const styleNode = document.createElement('style');
     styleNode.textContent = `
         img[src*="loading"],
@@ -54,7 +54,9 @@
     `;
     (document.head || document.documentElement).appendChild(styleNode);
 
-    // ============ 路径 1: 占位图 → 改 src 为暗色 SVG (v1.1.11) ============
+    // ============================================================
+    //  模块 1: 占位图 → 暗色 SVG (v1.1.11 完整保留, 一个字不改)
+    // ============================================================
 
     function applyDarkPlaceholder(img) {
         if (!img || img.tagName !== 'IMG') return;
@@ -90,14 +92,19 @@
         observer.observe(img, { attributes: true, attributeFilter: ['src', 'srcset'] });
     }
 
-    // ============ 路径 2: 加载中 → cover 盖住 (blob URL 等慢加载图) ============
+    // ============================================================
+    //  模块 2: blob URL 慢加载 → cover 盖住 (独立模块, 不与模块 1 共享状态)
+    // ============================================================
 
-    function applyLoadingCover(img) {
+    function applyBlobLoadingCover(img) {
         if (!img || img.tagName !== 'IMG') return;
-        if (img.dataset.dcHandled) return;
-        if (img.complete && img.naturalHeight > 0) return;  // 已加载完成且有内容, 不处理
+        if (img.dataset.dcBlobHandled) return;
 
-        img.dataset.dcHandled = '1';
+        const src = img.currentSrc || img.src;
+        if (!src || !src.startsWith('blob:')) return;  // 只处理 blob URL
+        if (img.complete && img.naturalHeight > 0) return;  // 已加载完成, 不处理
+
+        img.dataset.dcBlobHandled = '1';
 
         const container = img.parentElement;
         if (!container) return;
@@ -107,8 +114,8 @@
 
         // 覆盖层 div (inline z-index 2147483647 = int32 max)
         const cover = document.createElement('div');
-        cover.className = 'tm-dc-cover';
-        cover.setAttribute('data-dc-cover', '1');
+        cover.className = 'tm-dc-blob-cover';
+        cover.setAttribute('data-dc-blob-cover', '1');
         cover.style.setProperty('position', 'absolute', 'important');
         cover.style.setProperty('top', '0', 'important');
         cover.style.setProperty('left', '0', 'important');
@@ -152,75 +159,91 @@
         cover.appendChild(textWrap);
         container.insertBefore(cover, img);
 
-        // cleanup: 加载完成时移除 cover
-        // 5s 兜底: 卡住 / 永久 loading 时强制清理 (transparent 区域, 不是漆黑)
+        // cleanup: 加载完成时移除 cover + 5s 兜底
         let cleaned = false;
         let fallbackTimer = null;
         const doCleanup = () => {
             if (cleaned) return;
             cleaned = true;
             if (cover.parentNode) cover.parentNode.removeChild(cover);
-            delete img.dataset.dcHandled;
-            img.removeEventListener('load', cleanup);
-            img.removeEventListener('error', cleanup);
-            observer.disconnect();
+            delete img.dataset.dcBlobHandled;
+            img.removeEventListener('load', onLoadOrError);
+            img.removeEventListener('error', onLoadOrError);
             if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
         };
-        const cleanup = () => {
+        const onLoadOrError = () => {
             if (img.complete && img.naturalHeight > 0) doCleanup();
         };
-        img.addEventListener('load', cleanup);
-        img.addEventListener('error', cleanup);
-        const observer = new MutationObserver(cleanup);
-        observer.observe(img, { attributes: true, attributeFilter: ['src', 'srcset'] });
+        img.addEventListener('load', onLoadOrError);
+        img.addEventListener('error', onLoadOrError);
         fallbackTimer = setTimeout(doCleanup, 5000);
     }
 
-    // ============ 统一入口: 根据 src 决定走哪条路径 ============
+    // ============================================================
+    //  启动
+    // ============================================================
 
-    function applyDarkOrLoadingCover(img) {
-        if (!img || img.tagName !== 'IMG') return;
-        if (img.dataset.dcHandled) return;
-
-        const currentSrc = img.currentSrc || img.src;
-        const isPlaceholderSrc = isPlaceholder(currentSrc);
-        const isLoading = !img.complete || img.naturalHeight === 0;
-
-        if (isPlaceholderSrc) {
-            // 已知占位模式 → 改 src 为暗色 SVG (v1.1.11)
-            applyDarkPlaceholder(img);
-        } else if (isLoading) {
-            // blob URL 等未知 src + 加载中 → cover 盖住 (v1.1.12 新增)
-            applyLoadingCover(img);
-        }
-        // 已加载完成的非占位图 → 不处理
-    }
-
-    // ============ 启动 ============
-
-    const observer = new MutationObserver((mutations) => {
+    // 模块 1 启动: 监听 DOM 树 (跟 v1.1.11 一样)
+    const mainObserver = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
             for (const node of mutation.addedNodes) {
                 if (node.nodeType === 1) {
                     if (node.tagName === 'IMG') {
-                        applyDarkOrLoadingCover(node);
+                        applyDarkPlaceholder(node);
                     } else if (node.querySelectorAll) {
-                        node.querySelectorAll('img').forEach(applyDarkOrLoadingCover);
+                        node.querySelectorAll('img').forEach(applyDarkPlaceholder);
+                    }
+                }
+            }
+        }
+    });
+    if (document.documentElement) {
+        mainObserver.observe(document.documentElement, { childList: true, subtree: true });
+    }
+    document.querySelectorAll('img').forEach(applyDarkPlaceholder);
+
+    // 模块 2 启动: blob URL 独立处理
+    // - 独立 MutationObserver 监听 DOM 树
+    // - 独立 attrObserver 监听每个 img 的 src/srcset 变化 (捕获 page JS 改 src 为 blob URL)
+    const blobAttrObserver = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            if (mutation.type === 'attributes' && mutation.target.tagName === 'IMG') {
+                const img = mutation.target;
+                const src = img.currentSrc || img.src;
+                if (src && src.startsWith('blob:')) {
+                    applyBlobLoadingCover(img);
+                }
+            }
+        }
+    });
+
+    const blobObserver = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            for (const node of mutation.addedNodes) {
+                if (node.nodeType === 1) {
+                    if (node.tagName === 'IMG') {
+                        attachBlobHandler(node);
+                    } else if (node.querySelectorAll) {
+                        node.querySelectorAll('img').forEach(attachBlobHandler);
                     }
                 }
             }
         }
     });
 
-    if (document.documentElement) {
-        observer.observe(document.documentElement, { childList: true, subtree: true });
+    function attachBlobHandler(img) {
+        if (!img || img.tagName !== 'IMG') return;
+        // 立即检查
+        const src = img.currentSrc || img.src;
+        if (src && src.startsWith('blob:')) {
+            applyBlobLoadingCover(img);
+        }
+        // 监听 src/srcset 变化 (捕获 page JS 改 src 为 blob URL)
+        blobAttrObserver.observe(img, { attributes: true, attributeFilter: ['src', 'srcset'] });
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            document.querySelectorAll('img').forEach(applyDarkOrLoadingCover);
-        });
-    } else {
-        document.querySelectorAll('img').forEach(applyDarkOrLoadingCover);
+    if (document.documentElement) {
+        blobObserver.observe(document.documentElement, { childList: true, subtree: true });
     }
+    document.querySelectorAll('img').forEach(attachBlobHandler);
 })();
