@@ -14,6 +14,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `localStorage` 开关
 - 暴露覆盖层颜色 / 透明度配置项
 
+## [1.1.12] - 2026-08-23
+
+### Added
+- **blob URL 慢加载保护**（用户洞察 2026-08-23）
+  - 很多网站为了"防下载"用 `URL.createObjectURL(blob)` 加载图片（如 canvas → blob → URL）
+  - `blob:` URL **不匹配 PLACEHOLDER_PATTERNS**（之前 v1.1.11 不处理，v1.1.5~v1.1.9 也不处理）
+  - v1.1.12 加 **路径 2：blob URL 等未知 src + 加载中 → cover 盖住（白闪期）+ 5s 兜底**
+
+### Architecture
+- **双路径**:
+  - **路径 1（v1.1.11）**: 占位图（命中 PLACEHOLDER_PATTERNS）→ 改 src 为暗色 SVG
+  - **路径 2（v1.1.12 新增）**: 非占位图 + 加载中（`!img.complete || naturalHeight === 0`）→ cover 盖住 + 5s 兜底
+- **统一入口** `applyDarkOrLoadingCover(img)`：
+  - isPlaceholder(src) → 路径 1
+  - isLoading → 路径 2
+  - 已加载完成的非占位图 → 不处理
+- **5s 兜底仅对路径 2 生效**（占位图永远走路径 1，永远不退到原网站）
+
+### Tested
+- 3 个场景验证
+  - 永久占位图：v1.1.11 暗色 SVG 路径（永远不 visible）✅
+  - 真实图加载：自然显示，cleanup 跑过 ✅
+  - blob URL 慢加载：cover 盖住 → blob URL 加载完成 cleanup，真实图显示 ✅
+
+### Note
+bump 1.1.11 → 1.1.12。**用户的"防下载 blob URL"洞察**让 v1.1.11 漏网之鱼被捕获。v1.1.12 仍保持"占位图永远不 visible" + 真实图正常显示的核心 trade-off，但**扩展到任何慢加载图（不只是占位图）**——给非占位图"白闪保护"。
+
 ## [1.1.11] - 2026-08-23
 
 ### Changed
